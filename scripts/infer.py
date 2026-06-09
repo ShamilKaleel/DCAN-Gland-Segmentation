@@ -14,7 +14,7 @@ import numpy as np
 import torch
 from tqdm import tqdm
 
-from dcan.infer import overlap_tile_predict
+from dcan.infer import overlap_tile_predict, predict_with_tta
 from dcan.models.dcan import DCAN
 from dcan.models.fcn_baseline import FCNBaseline
 from dcan.postprocess import fuse_predictions, postprocess_fcn, postprocess_mask
@@ -37,6 +37,11 @@ def main():
         type=str,
         default=None,
         help="optional text file of image stems to predict (default: all images in the split)",
+    )
+    parser.add_argument(
+        "--tta",
+        action="store_true",
+        help="D4 test-time augmentation (8 views averaged) -- slower but more accurate",
     )
     args = parser.parse_args()
 
@@ -80,7 +85,8 @@ def main():
         image = cv2.imread(str(img_dir / f"{name}.png"), cv2.IMREAD_COLOR)
         image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
 
-        p_obj, p_cnt = overlap_tile_predict(
+        predict = predict_with_tta if args.tta else overlap_tile_predict
+        p_obj, p_cnt = predict(
             model, image, crop_size=crop_size, stride=stride,
             device=device, is_dcan=is_dcan,
         )
