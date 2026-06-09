@@ -90,10 +90,34 @@ Implemented and measured on a **clean held-out fold** (`runs/dcan_cv/fold0/best.
   per image, then sweeps `t_o`/`t_c`/`min_area` and reports the best config vs the 0.5/0.5/120
   defaults.
 
-**Measured gains (fold0_val):**
+**Measured gains** — on the two clean held-out CV folds (`fold0_val` 43 imgs, `fold1_val` 42 imgs;
+each evaluated with its own `dcan_cv/foldN/best.pt`). Values are the 2-fold mean:
 
-<!-- MEASURED_RESULTS -->
-_(filled in by `scripts/tune_postprocess.py` — see the table below once the sweep completes.)_
+| Setting | Detection F1 ↑ | Object-Dice ↑ | Hausdorff ↓ |
+|---|---|---|---|
+| Baseline (no TTA, default 0.5 / 0.5 / 120) | 0.692 | 0.798 | 91.9 |
+| **+ D4 TTA** (default thresholds) | 0.735 | 0.812 | 87.5 |
+| **+ TTA + tuned thresholds** (best per fold) | 0.787 | 0.822 | 91.7 |
+| Δ vs baseline (TTA only) | **+0.043** | **+0.014** | **−4.4** (better) |
+| Δ vs baseline (TTA + thresholds) | **+0.095** | **+0.024** | −0.3 |
+
+Per-fold detail in `runs/dcan_cv/fold{0,1}/postproc_sweep.json`.
+
+**Read:**
+- **TTA is a clean, free win** — it improves *all three* metrics (incl. Hausdorff) with no fitting
+  and no retraining; this gain transfers directly.
+- **Threshold tuning** adds a large **F1** jump (+~0.05 on top of TTA), driven mainly by a larger
+  `min_area` (300) pruning false-positive specks, plus a higher contour threshold `t_c`. It barely
+  moves Dice and slightly trades off Hausdorff, and the best `t_o` differed across folds
+  (0.6 vs 0.4) — so it is less stable than TTA. The grid was ranked by Dice; for deployment pick
+  thresholds by a balanced (rank-sum) criterion so Hausdorff isn't sacrificed, and note `min_area`
+  hit the grid edge (try ≥300).
+- **Caveat:** thresholds are tuned and measured on the *same* fold, so the threshold gains are an
+  optimistic upper bound; the TTA gains are leakage-free.
+
+Net: the no-retraining wins recover roughly **+0.02 object-Dice and +0.05–0.10 F1** — a meaningful
+slice of the gap to the paper before any retraining. Applying TTA to the all-85 test model
+(`scripts/infer.py --tta`) is the immediate next step.
 
 ---
 
