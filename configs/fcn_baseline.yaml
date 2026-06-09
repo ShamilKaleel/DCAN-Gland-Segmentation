@@ -1,0 +1,47 @@
+model: fcn_baseline
+seed: 42
+device: cuda
+
+# Data
+data_dir: data
+train_split: data/splits/fixed_train.txt
+val_split: data/splits/fixed_val.txt
+
+# Architecture
+output_stride: 8
+
+# Training (HPC: RTX 5090 32GB)
+crop_size: 480
+batch_size: 16
+num_workers: 16
+crops_per_image: 4
+max_epochs: 100
+pretrained: true
+accum_steps: 1
+freeze_encoder_bn: false
+eval_every: 5
+
+# Class weighting (capped inverse-frequency)
+obj_weight_cap: 10.0
+
+# Optimizer
+lr: 0.001
+momentum: 0.9
+weight_decay: 0.0005
+lr_patience: 10
+min_lr: 0.0000001
+
+# Deep supervision
+w_a_init: 1.0
+w_a_decay: 0.1
+w_a_step: 10000
+w_a_min: 0.001
+
+# Inference
+infer_stride: 240
+t_o: 0.5
+smooth_radius: 3
+min_area: 120
+
+# Output
+run_dir: runs/fcn_baseline

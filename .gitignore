@@ -1,0 +1,25 @@
+# Python
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info/
+
+# Virtual environments
+.venv/
+
+# Node / frontend build
+**/node_modules/
+webapp/frontend/dist/
+
+# Model checkpoints — too large for GitHub (>100 MB); retrain to regenerate
+*.pt
+*.pth
+
+# Bulky / regenerable run artifacts (figures, metrics JSON/CSV are KEPT)
+runs/**/pred/
+runs/**/logs/
+
+# Prepared dataset — regenerate from ../Dataset via scripts/prepare_data.py
+/data/

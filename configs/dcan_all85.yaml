@@ -1,0 +1,46 @@
+# Paper-benchmark config: train on ALL 85 training images (paper protocol),
+# evaluate on the official test_a (Part A) and test_b (Part B) sets.
+# val_split (a subset) is used only for Dice-based checkpoint selection.
+model: dcan
+seed: 42
+device: cuda
+
+output_stride: 8
+
+data_dir: data
+train_split: data/splits/all_train.txt
+val_split: data/splits/fixed_val.txt
+
+crop_size: 480
+batch_size: 8
+num_workers: 16
+crops_per_image: 4
+max_epochs: 100
+pretrained: true
+accum_steps: 1
+freeze_encoder_bn: false
+eval_every: 5
+
+obj_weight_cap: 10.0
+cnt_weight_cap: 5.0
+
+lr: 0.001
+momentum: 0.9
+weight_decay: 0.0005
+lr_patience: 10
+min_lr: 0.0000001
+
+w_a_init: 1.0
+w_a_decay: 0.1
+w_a_step: 10000
+w_a_min: 0.001
+
+contour_radius: 3
+
+infer_stride: 240
+t_o: 0.5
+t_c: 0.5
+smooth_radius: 3
+min_area: 120
+
+run_dir: runs/dcan_all85

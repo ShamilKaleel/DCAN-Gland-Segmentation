@@ -1,0 +1,5 @@
+Method,F1 ↑,Dice_obj ↑,Hausdorff_obj ↓,Rank-sum ↓
+DCAN,0.7642 ± 0.158,0.8395 ± 0.078,58.47 ± 44.0,3
+FCN,0.7048 ± 0.160,0.8045 ± 0.113,102.69 ± 66.3,6
+DCAN paper (Part A),0.9116,0.8974,45.42,— (ref)
+DCAN paper (Part B),0.7158,0.7810,160.35,— (ref)
