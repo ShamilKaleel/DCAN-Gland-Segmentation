@@ -225,24 +225,28 @@ def main():
 
         pbar = tqdm(train_loader, desc=f"Epoch {epoch}/{max_epochs}")
         for step, batch in enumerate(pbar):
+            # batch = (image, object target, contour target) from GlaSDataset.
             images = batch[0].to(device)
             obj_targets = batch[1].to(device)
 
-            w_a = aux_scheduler(global_iter)
+            w_a = aux_scheduler(global_iter)  # current deep-supervision weight
 
+            # Mixed precision (AMP) speeds up the forward/backward on the GPU.
             with torch.amp.autocast("cuda", enabled=use_amp):
-                outputs = model(images)
+                outputs = model(images)  # -> obj/contour logits (+ aux maps)
                 if is_dcan:
                     cnt_targets = batch[2].to(device)
                     losses = criterion(outputs, obj_targets, cnt_targets, w_a)
                 else:
                     losses = criterion(outputs, obj_targets, w_a)
 
-            # Gradient accumulation: scale loss so accumulated grads average over steps.
+            # Gradient accumulation: divide so grads summed over `accum_steps`
+            # micro-batches AVERAGE to one effective larger batch; step only every
+            # accum_steps. (`scaler` is the AMP loss scaler.)
             scaler.scale(losses["total"] / accum_steps).backward()
             if (step + 1) % accum_steps == 0:
-                scaler.step(optimizer)
-                scaler.update()
+                scaler.step(optimizer)   # unscale + SGD update
+                scaler.update()          # adjust the AMP scale factor
                 optimizer.zero_grad()
 
             loss_val = losses["total"].item()
@@ -313,7 +317,10 @@ def main():
             + (f", val_Dice={val_dice:.4f}" if val_dice is not None else "")
         )
 
-        # Checkpoint (best selected by object-Dice, not val CE loss)
+        # Checkpoint selection by object-Dice, NOT validation cross-entropy:
+        # val CE bottoms out (or overfits) early and would pick an under-segmenting
+        # model, whereas object-Dice tracks the metric we actually report. `last.pt`
+        # is always the latest epoch; `best.pt` is the highest val-Dice so far.
         ckpt = {
             "epoch": epoch,
             "global_iter": global_iter,

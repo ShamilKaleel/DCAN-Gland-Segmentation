@@ -14,7 +14,13 @@ def fuse_predictions(
     t_o: float = 0.5,
     t_c: float = 0.5,
 ) -> np.ndarray:
-    """Fusion rule from DCAN: foreground where p_obj >= t_o AND p_cnt < t_c."""
+    """Fusion rule from DCAN: foreground where p_obj >= t_o AND p_cnt < t_c.
+
+    A pixel is kept as gland body only if the object branch is confident it is
+    foreground AND the contour branch is confident it is NOT an edge. Subtracting
+    the predicted contour ridge is what carves apart touching glands so connected-
+    component labelling then yields separate instances. (paper Eq. 3, t_o=t_c=0.5)
+    """
     return ((p_obj >= t_o) & (p_cnt < t_c)).astype(np.uint8)
 
 
@@ -23,13 +29,16 @@ def postprocess_mask(
     smooth_radius: int = 3,
     min_area: int = 120,
 ) -> np.ndarray:
-    """Apply morphological cleaning and return uint16 instance label map."""
+    """Apply morphological cleaning and return uint16 instance label map.
+
+    Order matters: opening -> fill-holes -> label -> drop specks -> relabel.
+    """
     selem = disk(smooth_radius)
-    cleaned = opening(fused, selem)
-    cleaned = binary_fill_holes(cleaned).astype(np.uint8)
-    labeled = label(cleaned).astype(np.uint16)
-    labeled = remove_small_objects(labeled, min_size=min_area)
-    # Re-label sequentially
+    cleaned = opening(fused, selem)                          # remove thin bridges / noise specks
+    cleaned = binary_fill_holes(cleaned).astype(np.uint8)    # fill gland interiors left hollow by fusion
+    labeled = label(cleaned).astype(np.uint16)              # connected components -> one id per blob
+    labeled = remove_small_objects(labeled, min_size=min_area)  # drop tiny false-positive objects
+    # remove_small_objects leaves gaps in the id sequence; relabel so ids are 1..N.
     labeled = label(labeled > 0).astype(np.uint16)
     return labeled
 

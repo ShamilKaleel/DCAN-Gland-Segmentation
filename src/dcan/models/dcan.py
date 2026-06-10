@@ -62,14 +62,22 @@ def _build_encoder(pretrained: bool, output_stride: int):
 
 
 def _bilinear_weights(channels: int, ksize: int) -> torch.Tensor:
-    """Bilinear-interpolation kernel for initialising a ConvTranspose2d."""
+    """Bilinear-interpolation kernel for initialising a ConvTranspose2d.
+
+    We let the network *learn* the upsampling (deconvolution) but start it from a
+    plain bilinear-interpolation filter — a strong, artefact-free initial guess
+    that the paper also uses. `filt` is the standard 2-D triangular (bilinear)
+    window; it is copied onto the diagonal of the weight tensor so each output
+    channel is upsampled only from its own input channel (a per-channel resize),
+    leaving cross-channel mixing to be learned from this identity-like start.
+    """
     factor = (ksize + 1) // 2
     center = factor - 1 if ksize % 2 == 1 else factor - 0.5
     og = np.ogrid[:ksize, :ksize]
     filt = (1 - abs(og[0] - center) / factor) * (1 - abs(og[1] - center) / factor)
     w = np.zeros((channels, channels, ksize, ksize), dtype=np.float32)
     for i in range(channels):
-        w[i, i] = filt
+        w[i, i] = filt  # diagonal only -> channel i upsamples from channel i
     return torch.from_numpy(w)
 
 
@@ -78,12 +86,15 @@ class _LearnedUpsampler(nn.Module):
 
     def __init__(self, num_classes: int, factor: int):
         super().__init__()
+        # Upsample by `factor` using a stack of ×2 deconvolutions (factor=8 -> 3
+        # layers). Each step doubles H,W; stacking ×2 stages is more stable and
+        # learns sharper edges than a single large-kernel deconv.
         layers = []
         n = 0
         f = factor
         while f > 1:
             deconv = nn.ConvTranspose2d(num_classes, num_classes, kernel_size=4, stride=2, padding=1, bias=False)
-            deconv.weight.data.copy_(_bilinear_weights(num_classes, 4))
+            deconv.weight.data.copy_(_bilinear_weights(num_classes, 4))  # start = bilinear ×2
             layers.append(deconv)
             f //= 2
             n += 1
@@ -91,13 +102,22 @@ class _LearnedUpsampler(nn.Module):
 
     def forward(self, x: torch.Tensor, size: tuple[int, int]) -> torch.Tensor:
         x = self.up(x)
+        # Deconv factors are powers of two; if the input size isn't an exact
+        # multiple, snap the result to the exact target size with a bilinear pass.
         if x.shape[-2:] != size:
             x = F.interpolate(x, size=size, mode="bilinear", align_corners=False)
         return x
 
 
 class _Head(nn.Module):
-    """Per-level classifier head producing a score map at the feature resolution."""
+    """Per-level classifier head producing a score map at the feature resolution.
+
+    One head is attached to each tapped encoder depth. It (1) `transform`s the
+    (256/512/1024-channel) encoder feature down to a common `head_dim` with a 3×3
+    conv + GroupNorm + ReLU (GroupNorm, not BatchNorm, so the head is robust to
+    small batch sizes), then (2) `cls`-ifies it with Dropout + a 1×1 conv into
+    `num_classes` (2: background / foreground) score logits at the same /8 grid.
+    """
 
     def __init__(self, in_ch: int, head_dim: int = 64, num_classes: int = 2):
         super().__init__()
@@ -109,7 +129,7 @@ class _Head(nn.Module):
         self.cls = nn.Sequential(nn.Dropout2d(0.5), nn.Conv2d(head_dim, num_classes, kernel_size=1))
 
     def forward(self, feat: torch.Tensor) -> torch.Tensor:
-        return self.cls(self.transform(feat))
+        return self.cls(self.transform(feat))  # -> (B, num_classes, H/8, W/8)
 
 
 class _MultiLevelBranch(nn.Module):
@@ -127,20 +147,27 @@ class _MultiLevelBranch(nn.Module):
         self.upsampler = _LearnedUpsampler(num_classes, factor=deep_stride)
 
     def forward(self, feats: list[torch.Tensor], target_size: tuple[int, int]):
+        # One score map per tapped depth (different receptive fields = multi-level
+        # context). This is the "multi-level contextual fusion" of paper §2.1.
         score_maps = [head(f) for head, f in zip(self.heads, feats)]
         sizes = {tuple(s.shape[-2:]) for s in score_maps}
         if len(sizes) == 1:
-            # Atrous backbone: all heads share the deep stride -> sum then learned upsample.
+            # Atrous backbone (output_stride 8): every tap is already at /8, so we
+            # SUM the score maps first (cheap, at /8) and learn-upsample once.
             fused = score_maps[0]
             for s in score_maps[1:]:
                 fused = fused + s
             main = self.upsampler(fused, target_size)
         else:
-            # Mixed resolutions (output_stride 32): upsample each to full res, then sum.
+            # Legacy /32 backbone: taps live at different strides, so each score
+            # map must be resized to full resolution before they can be summed.
             ups = [F.interpolate(s, size=target_size, mode="bilinear", align_corners=False) for s in score_maps]
             main = ups[0]
             for u in ups[1:]:
                 main = main + u
+        # Deep supervision: every individual head map (not just the fused one) is
+        # upsampled and returned as an auxiliary output so each depth gets a direct
+        # gradient. The training loss weights these by w_a (see losses.py).
         aux = [F.interpolate(s, size=target_size, mode="bilinear", align_corners=False) for s in score_maps]
         return main, aux
 
@@ -161,6 +188,10 @@ class DCAN(nn.Module):
             nn.ReLU(inplace=True),
         )
 
+        # The two branches share the encoder but have independent heads/upsamplers.
+        # They tap the SAME three depths (enc3=256, enc4=512, bottleneck=1024).
+        # obj_branch predicts the gland body; contour_branch predicts gland edges.
+        # The contour branch is the only thing the FCN baseline drops.
         in_chs = (256, 512, 1024)  # enc3, enc4, bottleneck
         self.obj_branch = _MultiLevelBranch(in_chs, deep_stride, head_dim, num_classes)
         self.contour_branch = _MultiLevelBranch(in_chs, deep_stride, head_dim, num_classes)
@@ -173,16 +204,23 @@ class DCAN(nn.Module):
                     m.eval()
 
     def forward(self, x: torch.Tensor):
-        """Returns dict with keys: obj_main, obj_aux, cnt_main, cnt_aux."""
-        target_size = (x.shape[2], x.shape[3])
-        x = self.enc1(x)
-        x = self.enc2(x)
-        f3 = self.enc3(x)
-        f4 = self.enc4(f3)
-        f5 = self.enc5(f4)
-        fb = self.bottleneck(f5)
+        """input image -> object & contour logits (the full forward pass).
+
+        Returns a dict: obj_main / cnt_main are the fused full-resolution logits
+        used at inference; obj_aux / cnt_aux are the per-head deep-supervision
+        outputs used only by the training loss.
+        """
+        target_size = (x.shape[2], x.shape[3])  # remember input H,W to upsample back to
+        # --- shared encoder (downsampling path) ---
+        x = self.enc1(x)          # /2,  64
+        x = self.enc2(x)          # /4,  128
+        f3 = self.enc3(x)         # /8,  256  <- tapped
+        f4 = self.enc4(f3)        # /8,  512  (atrous: stays /8)  <- tapped
+        f5 = self.enc5(f4)        # /8,  512  (atrous: stays /8)
+        fb = self.bottleneck(f5)  # /8, 1024  (fc6, dilation 12)  <- tapped
         feats = [f3, f4, fb]
 
-        obj_main, obj_aux = self.obj_branch(feats, target_size)
-        cnt_main, cnt_aux = self.contour_branch(feats, target_size)
+        # --- two parallel decoder branches (same features, separate weights) ---
+        obj_main, obj_aux = self.obj_branch(feats, target_size)      # gland body
+        cnt_main, cnt_aux = self.contour_branch(feats, target_size)  # gland edges
         return {"obj_main": obj_main, "obj_aux": obj_aux, "cnt_main": cnt_main, "cnt_aux": cnt_aux}

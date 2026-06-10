@@ -37,6 +37,8 @@ class GlaSDataset(Dataset):
         self.transform = get_train_transform(crop_size) if is_train else get_val_transform()
 
     def __len__(self) -> int:
+        # Each image yields `crops_per_image` random crops per epoch, so the model
+        # sees several augmented 480² views of each of the few labelled images.
         return len(self.names) * self.crops_per_image
 
     def _load(self, name: str):
@@ -48,22 +50,30 @@ class GlaSDataset(Dataset):
         return image, instance
 
     def __getitem__(self, idx: int):
+        # idx runs over names×crops; map back to the source image (crops differ
+        # because the random augmentation is re-sampled each call).
         name = self.names[idx % len(self.names)]
         image, instance = self._load(name)
 
         if self.is_train:
             image, instance = pad_to_crop(image, instance, self.crop_size)
 
+        # Augment the image and the INSTANCE label map together (same geometric
+        # transform), so pixels stay aligned. `instance` is carried as a mask
+        # (nearest-neighbour, no interpolation) — see get_train_transform.
         transformed = self.transform(image=image, instance=instance)
-        image_t = transformed["image"]  # (3, H, W) float
-        instance_t = transformed["instance"]  # (H, W) uint16
+        image_t = transformed["image"]  # (3, H, W) float, normalized
+        instance_t = transformed["instance"]  # (H, W) uint16, still instance ids
 
+        # Build the two training targets from the AUGMENTED instance map, so the
+        # object/contour masks match the transformed image exactly.
         obj_mask = instance_to_object_mask(instance_t.numpy() if isinstance(instance_t, torch.Tensor) else instance_t)
         contour_mask = instance_to_contour_mask(
             instance_t.numpy() if isinstance(instance_t, torch.Tensor) else instance_t,
             self.contour_radius,
         )
 
+        # (image, object target, contour target) — long tensors are class indices for CE loss.
         return (
             image_t,
             torch.from_numpy(obj_mask).long(),

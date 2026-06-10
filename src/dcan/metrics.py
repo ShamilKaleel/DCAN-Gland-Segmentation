@@ -55,12 +55,14 @@ def _match_instances(gt: np.ndarray, pred: np.ndarray):
 
 
 def detection_f1(gt: np.ndarray, pred: np.ndarray) -> dict[str, float]:
+    # Counts are over OBJECTS, not pixels: tp = matched glands, fp = spurious
+    # predicted glands, fn = missed GT glands (see the one-to-one rule above).
     tp_pairs, fp_ids, fn_ids = _match_instances(gt, pred)
     tp = len(tp_pairs)
     fp = len(fp_ids)
     fn = len(fn_ids)
-    precision = tp / max(tp + fp, 1)
-    recall = tp / max(tp + fn, 1)
+    precision = tp / max(tp + fp, 1)   # of predicted glands, how many are real
+    recall = tp / max(tp + fn, 1)      # of real glands, how many we found
     f1 = 2 * precision * recall / max(precision + recall, 1e-8)
     return {"f1": f1, "precision": precision, "recall": recall, "tp": tp, "fp": fp, "fn": fn}
 

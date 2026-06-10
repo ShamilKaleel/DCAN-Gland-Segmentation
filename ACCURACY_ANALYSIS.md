@@ -116,8 +116,29 @@ Per-fold detail in `runs/dcan_cv/fold{0,1}/postproc_sweep.json`.
   optimistic upper bound; the TTA gains are leakage-free.
 
 Net: the no-retraining wins recover roughly **+0.02 object-Dice and +0.05–0.10 F1** — a meaningful
-slice of the gap to the paper before any retraining. Applying TTA to the all-85 test model
-(`scripts/infer.py --tta`) is the immediate next step.
+slice of the gap to the paper before any retraining.
+
+### 2.1 Applied to the official test set (D4 TTA, default thresholds)
+
+TTA applied to both all-85 models on the 60-image test set (`results_test_a_tta.json`; figures in
+`runs/figures_eval_tta/`). TTA is applied to *both* models so the comparison stays fair:
+
+| Model | F1 (base → +TTA) | Object-Dice (base → +TTA) | Hausdorff (base → +TTA) |
+|---|---|---|---|
+| **DCAN** | 0.764 → **0.835** (+0.071) | 0.839 → **0.864** (+0.024) | 58.5 → **50.8** (−7.7) |
+| FCN baseline | 0.705 → 0.721 (+0.016) | 0.804 → 0.815 (+0.011) | 102.7 → 98.3 (−4.4) |
+
+TTA helps the **contour-aware DCAN far more than the object-only FCN** (F1 +0.071 vs +0.016) — the
+averaged views sharpen exactly the boundary predictions DCAN relies on. The gap to the paper
+(DCAN Part-A: F1 0.912 / Dice 0.897 / HD 45.4) **roughly halves with zero retraining**:
+
+| Metric | gap before | gap after TTA |
+|---|---|---|
+| Object-Dice | −0.058 | **−0.033** |
+| Detection F1 | −0.148 | **−0.077** |
+| Hausdorff (px) | +13.1 | **+5.4** |
+
+This is the immediate headline win; the Phase-2 retraining fixes (§3) target the rest.
 
 ---
 

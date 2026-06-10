@@ -19,6 +19,7 @@ webapp/frontend/dist/
 
 # Bulky / regenerable run artifacts (figures, metrics JSON/CSV are KEPT)
 runs/**/pred/
+runs/**/pred_*/
 runs/**/logs/
 
 # Prepared dataset — regenerate from ../Dataset via scripts/prepare_data.py

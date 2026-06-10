@@ -1,0 +1,125 @@
+<mxfile host="app.diagrams.net" type="device">
+  <diagram name="DCAN model architecture" id="dcan_arch">
+    <mxGraphModel dx="1500" dy="1000" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1900" pageHeight="1000" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <mxCell id="title" value="DCAN — Deep Contour-Aware Network (our implementation, output stride 8)" style="text;html=1;fontSize=20;fontStyle=1;align=center;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="450" y="20" width="1000" height="36" as="geometry" />
+        </mxCell>
+
+        <!-- lane labels (far left, clear of taps) -->
+        <mxCell id="ob_lane" value="OBJECT branch&lt;br&gt;(gland body) ↑" style="text;html=1;fontSize=16;fontStyle=1;align=left;fontColor=#5a9e4f;" vertex="1" parent="1">
+          <mxGeometry x="20" y="185" width="280" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="cn_lane" value="CONTOUR branch&lt;br&gt;(gland edges) ↓&#160;&#160;— DCAN’s key addition" style="text;html=1;fontSize=16;fontStyle=1;align=left;fontColor=#d79b00;" vertex="1" parent="1">
+          <mxGeometry x="20" y="730" width="380" height="50" as="geometry" />
+        </mxCell>
+
+        <!-- ===================== OBJECT BRANCH (TOP, step chain) ===================== -->
+        <mxCell id="ob_heads" value="&lt;b&gt;3 multi-level heads&lt;/b&gt; (tap enc3 · enc4 · fc6)&lt;br&gt;3×3 conv → GroupNorm → ReLU → Dropout 0.5 → 1×1 (2 ch)&lt;br&gt;→ three 2-channel score maps @ /8" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=14;align=left;verticalAlign=middle;spacingLeft=10;" vertex="1" parent="1">
+          <mxGeometry x="480" y="160" width="620" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="ob_sum" value="⊕ sum-fusion&lt;br&gt;@ /8" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=14;align=center;" vertex="1" parent="1">
+          <mxGeometry x="1140" y="175" width="130" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="ob_up" value="×8 learned&lt;br&gt;upsample&lt;br&gt;(3× ConvTranspose)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=14;align=center;" vertex="1" parent="1">
+          <mxGeometry x="1300" y="175" width="170" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="ob_soft" value="softmax" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=14;align=center;" vertex="1" parent="1">
+          <mxGeometry x="1500" y="175" width="110" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="ob_out" value="&lt;b&gt;p_obj&lt;/b&gt;&lt;br&gt;object prob&lt;br&gt;(480×480)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontSize=14;align=center;" vertex="1" parent="1">
+          <mxGeometry x="1640" y="175" width="160" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="eo1" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="ob_heads" target="ob_sum"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="eo2" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="ob_sum" target="ob_up"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="eo3" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="ob_up" target="ob_soft"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="eo4" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="ob_soft" target="ob_out"><mxGeometry relative="1" as="geometry" /></mxCell>
+
+        <!-- ===================== ENCODER TRUNK (CENTRE) ===================== -->
+        <mxCell id="input" value="Input&lt;br&gt;H&amp;E patch&lt;br&gt;480×480×3" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=14;align=center;" vertex="1" parent="1">
+          <mxGeometry x="20" y="430" width="120" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="enc1" value="enc1&lt;br&gt;block1–2&lt;br&gt;↓ /2 · 64" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=14;align=center;" vertex="1" parent="1">
+          <mxGeometry x="160" y="430" width="140" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="enc2" value="enc2&lt;br&gt;block3&lt;br&gt;↓ /4 · 128" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=14;align=center;" vertex="1" parent="1">
+          <mxGeometry x="320" y="430" width="140" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="enc3" value="enc3&lt;br&gt;block4&lt;br&gt;↓ /8 · 256" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=14;fontStyle=1;align=center;" vertex="1" parent="1">
+          <mxGeometry x="480" y="430" width="140" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="enc4" value="enc4&lt;br&gt;block5 convs&lt;br&gt;/8 · 512&lt;br&gt;(pool4 s1)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=14;fontStyle=1;align=center;" vertex="1" parent="1">
+          <mxGeometry x="640" y="430" width="140" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="enc5" value="enc5&lt;br&gt;/8 · 512&lt;br&gt;(dilation 2,&lt;br&gt;pool5 s1)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=14;align=center;" vertex="1" parent="1">
+          <mxGeometry x="800" y="430" width="140" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="fc6" value="fc6 bottleneck&lt;br&gt;/8 · 1024&lt;br&gt;(dilation 12)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=14;fontStyle=1;align=center;" vertex="1" parent="1">
+          <mxGeometry x="960" y="430" width="140" height="120" as="geometry" />
+        </mxCell>
+
+        <mxCell id="e_in_1" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="input" target="enc1"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e_1_2" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="enc1" target="enc2"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e_2_3" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="enc2" target="enc3"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e_3_4" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="enc3" target="enc4"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e_4_5" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="enc4" target="enc5"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e_5_6" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="enc5" target="fc6"><mxGeometry relative="1" as="geometry" /></mxCell>
+
+        <!-- Tap arrows UP to object heads (clean verticals) -->
+        <mxCell id="t3u" style="edgeStyle=none;html=1;endArrow=block;dashed=1;exitX=0.5;exitY=0;entryX=0.113;entryY=1;" edge="1" parent="1" source="enc3" target="ob_heads"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="t4u" style="edgeStyle=none;html=1;endArrow=block;dashed=1;exitX=0.5;exitY=0;entryX=0.371;entryY=1;" edge="1" parent="1" source="enc4" target="ob_heads"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="t6u" style="edgeStyle=none;html=1;endArrow=block;dashed=1;exitX=0.5;exitY=0;entryX=0.887;entryY=1;" edge="1" parent="1" source="fc6" target="ob_heads"><mxGeometry relative="1" as="geometry" /></mxCell>
+
+        <!-- Tap arrows DOWN to contour heads -->
+        <mxCell id="t3d" style="edgeStyle=none;html=1;endArrow=block;dashed=1;exitX=0.5;exitY=1;entryX=0.113;entryY=0;" edge="1" parent="1" source="enc3" target="cn_heads"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="t4d" style="edgeStyle=none;html=1;endArrow=block;dashed=1;exitX=0.5;exitY=1;entryX=0.371;entryY=0;" edge="1" parent="1" source="enc4" target="cn_heads"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="t6d" style="edgeStyle=none;html=1;endArrow=block;dashed=1;exitX=0.5;exitY=1;entryX=0.887;entryY=0;" edge="1" parent="1" source="fc6" target="cn_heads"><mxGeometry relative="1" as="geometry" /></mxCell>
+
+        <!-- ===================== CONTOUR BRANCH (BOTTOM, step chain) ===================== -->
+        <mxCell id="cn_heads" value="&lt;b&gt;3 multi-level heads&lt;/b&gt; (tap enc3 · enc4 · fc6)&lt;br&gt;same structure as the object branch&lt;br&gt;→ three 2-channel score maps @ /8" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=14;align=left;verticalAlign=middle;spacingLeft=10;" vertex="1" parent="1">
+          <mxGeometry x="480" y="700" width="620" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="cn_sum" value="⊕ sum-fusion&lt;br&gt;@ /8" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=14;align=center;" vertex="1" parent="1">
+          <mxGeometry x="1140" y="715" width="130" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="cn_up" value="×8 learned&lt;br&gt;upsample&lt;br&gt;(3× ConvTranspose)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=14;align=center;" vertex="1" parent="1">
+          <mxGeometry x="1300" y="715" width="170" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="cn_soft" value="softmax" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=14;align=center;" vertex="1" parent="1">
+          <mxGeometry x="1500" y="715" width="110" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="cn_out" value="&lt;b&gt;p_cnt&lt;/b&gt;&lt;br&gt;contour prob&lt;br&gt;(480×480)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontSize=14;align=center;" vertex="1" parent="1">
+          <mxGeometry x="1640" y="715" width="160" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="ec1" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="cn_heads" target="cn_sum"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="ec2" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="cn_sum" target="cn_up"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="ec3" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="cn_up" target="cn_soft"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="ec4" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="cn_soft" target="cn_out"><mxGeometry relative="1" as="geometry" /></mxCell>
+
+        <!-- ===================== FUSION (RIGHT APEX) ===================== -->
+        <mxCell id="fuse" value="&lt;b&gt;Fusion rule&lt;/b&gt;&lt;br&gt;mask = (p_obj ≥ t_o)&lt;br&gt;AND (p_cnt &lt; t_c)&lt;br&gt;→ instance map" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=14;align=center;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="1640" y="415" width="180" height="130" as="geometry" />
+        </mxCell>
+        <mxCell id="e_ob_fuse" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="ob_out" target="fuse"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e_cn_fuse" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block;exitX=0.5;exitY=0;entryX=0.5;entryY=1;" edge="1" parent="1" source="cn_out" target="fuse"><mxGeometry relative="1" as="geometry" /></mxCell>
+
+        <!-- ===================== FOOTNOTES ===================== -->
+        <mxCell id="fn1" value="Atrous (DeepLab-LargeFOV): the last two pooling strides are removed and the following convs dilated, so the map stays at /8 from enc3 onward → sharp gland boundaries." style="text;html=1;fontSize=14;fontStyle=2;align=left;fontColor=#444444;" vertex="1" parent="1">
+          <mxGeometry x="20" y="868" width="1780" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="fn2" value="Deep supervision: each of the 3 head score-maps is also upsampled as an auxiliary output, its loss weighted by w_a (decayed during training)." style="text;html=1;fontSize=14;fontStyle=2;align=left;fontColor=#444444;" vertex="1" parent="1">
+          <mxGeometry x="20" y="900" width="1780" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="fn3" value="FCN baseline = the same encoder + the same step chain, but the OBJECT branch only (no contour branch — the single architectural difference)." style="text;html=1;fontSize=14;fontStyle=2;align=left;fontColor=#444444;" vertex="1" parent="1">
+          <mxGeometry x="20" y="932" width="1780" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="legend" value="Code: src/dcan/models/dcan.py — _build_encoder() · _MultiLevelBranch · _LearnedUpsampler   |   fusion: src/dcan/postprocess.py" style="text;html=1;fontSize=14;align=left;fontColor=#777777;" vertex="1" parent="1">
+          <mxGeometry x="20" y="964" width="1780" height="26" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

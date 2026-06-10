@@ -1,0 +1,43 @@
+<mxfile host="app.diagrams.net" type="device">
+  <diagram name="End-to-end pipeline" id="pipeline">
+    <mxGraphModel dx="1500" dy="700" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1900" pageHeight="520" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <mxCell id="title" value="Gland-segmentation pipeline — input image to scored instance map" style="text;html=1;fontSize=20;fontStyle=1;align=center;" vertex="1" parent="1">
+          <mxGeometry x="450" y="18" width="1000" height="32" as="geometry" />
+        </mxCell>
+
+        <mxCell id="s1" value="① INPUTS&#10;&#10;• H&amp;E image (H×W×3)&#10;• Instance GT label map&#10;  (training only)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=14;align=left;verticalAlign=top;spacingLeft=10;spacingTop=10;" vertex="1" parent="1">
+          <mxGeometry x="20" y="100" width="290" height="320" as="geometry" />
+        </mxCell>
+        <mxCell id="s2" value="② PREPROCESSING&#10;&#10;• targets from GT:&#10;   – object mask = (inst &gt; 0)&#10;   – contour mask = per-instance&#10;     boundary, dilated r = 3&#10;• augment: crop 480², flips,&#10;   rot90, elastic, stain jitter&#10;• normalize (ImageNet; image only)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=14;align=left;verticalAlign=top;spacingLeft=10;spacingTop=10;" vertex="1" parent="1">
+          <mxGeometry x="330" y="100" width="290" height="320" as="geometry" />
+        </mxCell>
+        <mxCell id="s3" value="③ TRAINING&#10;&#10;• DCAN forward → obj + contour&#10;   logits (+ deep-supervision aux)&#10;• loss = L_obj + L_cnt + w_a·Σaux&#10;   (weighted cross-entropy)&#10;• SGD, AMP, ReduceLROnPlateau&#10;• checkpoint by val object-Dice" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=14;align=left;verticalAlign=top;spacingLeft=10;spacingTop=10;" vertex="1" parent="1">
+          <mxGeometry x="640" y="100" width="290" height="320" as="geometry" />
+        </mxCell>
+        <mxCell id="s4" value="④ INFERENCE&#10;&#10;• overlap-tile 480 / stride 240&#10;   (reflect-pad, average overlaps)&#10;• optional D4 TTA (8 views)&#10;&#10;→ p_obj, p_cnt&#10;   probability maps" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=14;align=left;verticalAlign=top;spacingLeft=10;spacingTop=10;" vertex="1" parent="1">
+          <mxGeometry x="950" y="100" width="290" height="320" as="geometry" />
+        </mxCell>
+        <mxCell id="s5" value="⑤ POST-PROCESSING&#10;&#10;• fusion: (p_obj ≥ t_o)&#10;   AND (p_cnt &lt; t_c)&#10;• opening → fill holes&#10;• connected components&#10;• remove small (&lt; min_area)&#10;&#10;→ instance label map" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=14;align=left;verticalAlign=top;spacingLeft=10;spacingTop=10;" vertex="1" parent="1">
+          <mxGeometry x="1260" y="100" width="290" height="320" as="geometry" />
+        </mxCell>
+        <mxCell id="s6" value="⑥ EVALUATION&#10;(official GlaS)&#10;&#10;• Detection F1&#10;   (one-to-one ≥ 50%)&#10;• Object-Dice&#10;• Object-Hausdorff" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=14;align=left;verticalAlign=top;spacingLeft=10;spacingTop=10;" vertex="1" parent="1">
+          <mxGeometry x="1570" y="100" width="290" height="320" as="geometry" />
+        </mxCell>
+
+        <mxCell id="p12" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block;strokeWidth=2;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="s1" target="s2"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="p23" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block;strokeWidth=2;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="s2" target="s3"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="p34" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block;strokeWidth=2;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="s3" target="s4"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="p45" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block;strokeWidth=2;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="s4" target="s5"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="p56" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block;strokeWidth=2;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="s5" target="s6"><mxGeometry relative="1" as="geometry" /></mxCell>
+
+        <mxCell id="codemap" value="Code map:   preprocessing → src/dcan/data/{targets,dataset,augment}.py   ·   training → losses.py + scripts/train.py   ·   inference → infer.py   ·   post-processing → postprocess.py   ·   evaluation → metrics.py" style="text;html=1;fontSize=14;align=left;fontColor=#666666;" vertex="1" parent="1">
+          <mxGeometry x="20" y="445" width="1840" height="26" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

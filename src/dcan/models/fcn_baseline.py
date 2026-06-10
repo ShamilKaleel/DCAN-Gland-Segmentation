@@ -34,12 +34,16 @@ class FCNBaseline(nn.Module):
                     m.eval()
 
     def forward(self, x: torch.Tensor):
+        # Same encoder + multi-level fusion as DCAN, but a SINGLE (object) branch —
+        # no contour prediction, so there is nothing to fuse-subtract and touching
+        # glands stay merged. This is exactly the ablation that isolates the value
+        # of DCAN's contour branch.
         target_size = (x.shape[2], x.shape[3])
         x = self.enc1(x)
         x = self.enc2(x)
-        f3 = self.enc3(x)
-        f4 = self.enc4(f3)
-        f5 = self.enc5(f4)
-        fb = self.bottleneck(f5)
+        f3 = self.enc3(x)         # /8, 256  (tapped)
+        f4 = self.enc4(f3)        # /8, 512  (tapped)
+        f5 = self.enc5(f4)        # /8, 512
+        fb = self.bottleneck(f5)  # /8, 1024 (tapped)
         obj_main, obj_aux = self.obj_branch([f3, f4, fb], target_size)
         return {"obj_main": obj_main, "obj_aux": obj_aux}

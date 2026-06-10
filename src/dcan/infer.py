@@ -33,12 +33,17 @@ def overlap_tile_predict(
     model.eval()
     h, w = image.shape[:2]
 
-    # Pad so that tiles cover the full image
+    # GlaS images vary in size and exceed the 480² training crop, so we slide a
+    # crop_size window with 50% overlap (stride 240). Reflect-pad up to the next
+    # whole number of strides so every pixel is covered by >=1 tile (and most by
+    # several), which removes the seams a non-overlapping tiling would leave.
     pad_h = max(crop_size - h, 0) + (stride - (max(h, crop_size) - crop_size) % stride) % stride
     pad_w = max(crop_size - w, 0) + (stride - (max(w, crop_size) - crop_size) % stride) % stride
     padded = np.pad(image, ((0, pad_h), (0, pad_w), (0, 0)), mode="reflect")
     ph, pw = padded.shape[:2]
 
+    # Accumulate the per-class softmax probabilities and a hit-count per pixel, so
+    # overlapping tiles are AVERAGED (not overwritten).
     sum_obj = np.zeros((2, ph, pw), dtype=np.float64)
     sum_cnt = np.zeros((2, ph, pw), dtype=np.float64) if is_dcan else None
     counts = np.zeros((ph, pw), dtype=np.float64)
@@ -50,6 +55,7 @@ def overlap_tile_predict(
                 inp = torch.from_numpy(normalize_image(tile)).unsqueeze(0).to(device)
                 out = model(inp)
 
+                # softmax -> probabilities (averaging logits across tiles would be wrong).
                 p_o = F.softmax(out["obj_main"], dim=1)[0].cpu().numpy()
                 sum_obj[:, y : y + crop_size, x : x + crop_size] += p_o
 
@@ -59,9 +65,9 @@ def overlap_tile_predict(
 
                 counts[y : y + crop_size, x : x + crop_size] += 1.0
 
-    counts = np.maximum(counts, 1.0)
-    avg_obj = sum_obj / counts[None, :, :]
-    p_obj = avg_obj[1, :h, :w]  # foreground probability
+    counts = np.maximum(counts, 1.0)              # guard against divide-by-zero
+    avg_obj = sum_obj / counts[None, :, :]        # mean probability per pixel
+    p_obj = avg_obj[1, :h, :w]  # channel 1 = foreground; crop padding back off
 
     p_cnt = None
     if is_dcan:
